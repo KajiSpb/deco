@@ -5,6 +5,9 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 add_compile_options(-Wall -Werror -Wshadow)
 
+# On Debian/Ubuntu: apt install libncurses-dev
+find_package(Curses REQUIRED)
+
 add_executable(${PROJECT_NAME}
     cap.c
     choice.c
@@ -29,7 +32,8 @@ add_executable(${PROJECT_NAME}
     ut.c
     view.c
 )
-target_link_libraries(${PROJECT_NAME} ncurses)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CURSES_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} ${CURSES_LIBRARIES})
 
 install(TARGETS ${PROJECT_NAME}
     DESTINATION bin

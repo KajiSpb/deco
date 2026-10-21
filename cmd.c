@@ -987,13 +987,15 @@ static int cmpfil(char *d1, char *f1, char *d2, char *f2)
     register int i;
     int fd1, fd2;
     char buf1[512], buf2[512];
+    char path1[MAXPATHLEN], path2[MAXPATHLEN];
     int n1, n2, rez;
 
-    sprintf(buf1, "%s/%s", d1, f1);
-    sprintf(buf2, "%s/%s", d2, f2);
-    if ((fd1 = open(buf1, 0)) < 0)
+    if (snprintf(path1, sizeof(path1), "%s/%s", d1, f1) >= (int)sizeof(path1) ||
+        snprintf(path2, sizeof(path2), "%s/%s", d2, f2) >= (int)sizeof(path2))
         return (0);
-    if ((fd2 = open(buf2, 0)) < 0) {
+    if ((fd1 = open(path1, 0)) < 0)
+        return (0);
+    if ((fd2 = open(path2, 0)) < 0) {
         close(fd1);
         return (0);
     }

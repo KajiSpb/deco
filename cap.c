@@ -91,7 +91,7 @@ void CapGet(struct CapTab *t)
     memcpy(bp, begarea, area - begarea);
     for (p = t; p->tname[0]; ++p)
         if (p->ttype == CAPSTR && *(p->ts) >= begarea && *(p->ts) < area)
-            *(p->ts) += bp - begarea;
+            *(p->ts) = bp + (*(p->ts) - begarea);
     free(begarea);
 #ifdef DEBUG
     for (p = t; p->tname[0]; ++p) {
