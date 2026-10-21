@@ -141,9 +141,9 @@ int main(int argc, char **argv, char **envp)
                 continue;
             }
         default:
-            if ((c >= ' ' && c <= '~') || (c >= 0300 && c <= 0377)) {
+            if (isinputchar(c)) {
                 if (cpos || c != ' ')
-                    inscmd(c);
+                    inschar(c);
                 continue;
             }
             VBeep();

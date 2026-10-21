@@ -1267,7 +1267,7 @@ void VPutChar(int c)
         if ((c & 0300) == 0200) {
             utf8code = utf8code << 6 | (c & 077);
             if (--utf8left == 0)
-                putcell(unicode_to_cell(utf8code));
+                putcell(utf8code < 0200 ? '?' : unicode_to_cell(utf8code));
             return;
         }
         utf8flush();

@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "deco.h"
+#include "scr.h"
 
 #define SYSTEMID "/etc/systemid"
 
@@ -115,6 +116,58 @@ const char *dispskip(const char *s, int width)
     while (width-- > 0 && *s)
         s += dispcharlen(s, 4);
     return (s);
+}
+
+/*
+ * Position of the next displayed character.
+ */
+int dispnext(const char *s, int pos)
+{
+    if (!s[pos])
+        return (pos);
+    return (pos + dispcharlen(s + pos, 4));
+}
+
+/*
+ * Position of the previous displayed character.
+ */
+int dispprev(const char *s, int pos)
+{
+    int p = 0, prev = 0;
+
+    while (p < pos && s[p]) {
+        prev = p;
+        p    = dispnext(s, p);
+    }
+    return (prev);
+}
+
+/*
+ * Length of valid multibyte UTF-8 character, or 0.
+ */
+int utf8len(const char *s)
+{
+    int c = *s & 0377, len, i;
+
+    if (!VUtf8 || c < 0302 || c >= 0365)
+        return (0);
+    len = c < 0340 ? 2 : c < 0360 ? 3 : 4;
+    for (i = 1; i < len; ++i)
+        if ((s[i] & 0300) != 0200)
+            return (0);
+    return (len);
+}
+
+/*
+ * Can this byte be typed into a command line or input field?
+ */
+int isinputchar(int c)
+{
+    if (c >= ' ' && c <= '~')
+        return (1);
+    if (VUtf8)
+        return (c >= 0200 && c <= 0377);
+    return (c >= 0300 && c <= 0377);
 }
 
 const char *extension(const char *p)

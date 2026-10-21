@@ -40,7 +40,7 @@ static int esclen(char *str);
 static void putescstr(char *str, int maxlen);
 static void wresccmd(char *str, int n);
 static void wrescchar(int c);
-static void wrescback(int c);
+static void wrescback(char *s);
 static int inputcmd(int plen);
 
 void drawcmd()
@@ -48,7 +48,7 @@ void drawcmd()
     int c;
     CURSOR cursor;
 
-    if (H == LINES - 7 && strlen(cur->shortcwd) + 3 + esclen(command) > 79) {
+    if (H == LINES - 7 && dispwidth(cur->shortcwd) + 3 + esclen(command) > 79) {
         fullscreen(0, 0);
         draw();
     }
@@ -142,9 +142,8 @@ void delcmd()
 
     if (!command[cpos])
         return;
-    for (k = cpos + 1; command[k]; ++k)
-        command[k - 1] = command[k];
-    command[k - 1] = 0;
+    k = dispnext(command, cpos);
+    memmove(command + cpos, command + k, strlen(command + k) + 1);
 }
 
 void homecmd()
@@ -161,7 +160,7 @@ void endcmd()
 void rightcmd()
 {
     if (command[cpos]) {
-        ++cpos;
+        cpos = dispnext(command, cpos);
         if (cpos >= CMDLEN)
             cpos = CMDLEN - 1;
     }
@@ -169,8 +168,21 @@ void rightcmd()
 
 void leftcmd()
 {
-    if (--cpos < 0)
-        cpos = 0;
+    cpos = dispprev(command, cpos);
+}
+
+/*
+ * Insert the whole character, which starts with the given key.
+ */
+void inschar(int key)
+{
+    char seq[8], *p;
+
+    KeyGetSeq(key, seq);
+    if (strlen(command) + strlen(seq) >= CMDLEN)
+        return;
+    for (p = seq; *p; ++p)
+        inscmd(*p & 0377);
 }
 
 void upcmd()
@@ -315,7 +327,7 @@ void execmd(int hit, int savhist)
         VReopen();
         command[cpos = 0] = 0;
         for (;;) {
-            if (!inputcmd(strlen(cur->shortcwd) + 3) || !command[0])
+            if (!inputcmd(dispwidth(cur->shortcwd) + 3) || !command[0])
                 break;
             histcmd();
             hpos = -1;
@@ -348,11 +360,16 @@ static int inputcmd(int plen)
     command[cpos = 0] = 0;
     for (;;) {
         c = KeyGet();
-        if ((c >= ' ' && c <= '~') || (c >= 0300 && c <= 0377)) {
+        if (isinputchar(c)) {
             if (cpos || c != ' ') {
-                inscmd(c);
-                cc = c;
-                write(1, &cc, 1);
+                char seq[8];
+
+                KeyGetSeq(c, seq);
+                if (strlen(command) + strlen(seq) >= CMDLEN)
+                    continue;
+                for (cc = 0; seq[(int)cc]; ++cc)
+                    inscmd(seq[(int)cc] & 0377);
+                write(1, seq, strlen(seq));
             }
             continue;
         }
@@ -410,8 +427,8 @@ static int inputcmd(int plen)
             continue;
         case meta('b'): /* backspace */
             if (cpos) {
-                wrescback(command[cpos - 1]);
                 leftcmd();
+                wrescback(command + cpos);
                 delcmd();
             }
             continue;
@@ -425,8 +442,10 @@ static void erasecmd(int plen)
         write(1, "\r\n", 2);
         write(1, prompt, (unsigned)strlen(prompt));
     } else
-        while (--cpos >= 0)
-            wrescback(command[cpos]);
+        while (cpos > 0) {
+            leftcmd();
+            wrescback(command + cpos);
+        }
     command[cpos = 0] = 0;
 }
 
@@ -760,7 +779,9 @@ static int esclen(char *str)
     register int c, count;
 
     for (count = 0; (c = 0377 & *str); ++count, ++str)
-        if (c < ' ' || c == 0177)
+        if ((c = utf8len(str)))
+            str += c - 1;
+        else if ((c = 0377 & *str) < ' ' || c == 0177)
             ++count;
         else if ((c >= 0200 && c < 0300) || c == 0377)
             count += 3;
@@ -774,7 +795,14 @@ static void putescstr(char *str, int maxlen)
     if (maxlen <= 0)
         maxlen = 9999;
     for (; (c = 0377 & *str); ++str)
-        if (c < ' ' || c == 0177) {
+        if ((c = utf8len(str))) {
+            maxlen -= 1;
+            if (maxlen < 0)
+                break;
+            while (c-- > 0)
+                VPutChar(*str++);
+            --str;
+        } else if ((c = 0377 & *str) < ' ' || c == 0177) {
             maxlen -= 2;
             if (maxlen < 0)
                 break;
@@ -803,6 +831,13 @@ static void wresccmd(char *str, int n)
     register int c;
 
     for (p = buf; --n >= 0; ++str) {
+        if ((c = utf8len(str))) {
+            n -= c - 1;
+            while (c-- > 0)
+                *p++ = *str++;
+            --str;
+            continue;
+        }
         c = 0377 & *str;
         if (c < ' ' || c == 0177) {
             *p++ = '^';
@@ -838,10 +873,13 @@ static void wrescchar(int c)
     write(1, buf, (unsigned)(p - buf));
 }
 
-static void wrescback(int c)
+static void wrescback(char *s)
 {
-    c &= 0377;
-    if (c < ' ' || c == 0177)
+    int c = *s & 0377;
+
+    if (utf8len(s))
+        write(1, "\b \b", 3);
+    else if (c < ' ' || c == 0177)
         write(1, "\b\b  \b\b", 6);
     else if ((c >= 0200 && c < 0300) || c == 0377)
         write(1, "\b\b\b\b    \b\b\b\b", 12);

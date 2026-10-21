@@ -27,6 +27,7 @@ extern int LINES, COLS;
 extern WINDOW VScreen;
 
 extern int TtyUpperCase;
+extern int VUtf8; /* screen uses UTF-8 */
 
 #define VMPutChar(y, x, ch)    (VMove(y, x), VPutChar(ch))
 #define VMPutString(y, x, str) (VMove(y, x), VPutString(str))
@@ -83,6 +84,7 @@ void KeyInit(struct KeyMap *map, void (*flushproc)(void));
 int KeyGetChar(void);
 int KeyGet(void);
 void KeyUnget(int key);
+int KeyGetSeq(int key, char *seq);
 
 #define CAPNUM 1
 #define CAPFLG 2

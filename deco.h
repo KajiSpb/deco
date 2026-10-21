@@ -32,7 +32,6 @@ extern int main_pid;           /* our process id */
 extern int ppid;               /* parent id */
 extern int lang;               /* language */
 extern char editname[40], viewname[40];
-extern int VUtf8; /* screen uses UTF-8 */
 extern int useredit, userview, usecshell;
 extern int viewraw, viewhex, viewtabs;
 extern char *home;
@@ -88,6 +87,10 @@ char *strtail(char *p, int delim, int maxlen);
 int dispwidth(const char *s);
 int dispwidthn(const char *s, int n);
 const char *dispskip(const char *s, int width);
+int dispnext(const char *s, int pos);
+int dispprev(const char *s, int pos);
+int utf8len(const char *s);
+int isinputchar(int c);
 int strbcmp(char *s, char *b);
 int match(char *name, char *pat);
 int getmenu(void);
@@ -123,6 +126,7 @@ void counttag(struct dir *d);
 void rightcmd(void);
 void mvcaddstr(int r, int c, char *s);
 void inscmd(int key);
+void inschar(int key);
 int quote(void);
 void fullscreen(int k, int sk);
 int tagged(void);

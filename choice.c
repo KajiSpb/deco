@@ -220,8 +220,9 @@ static void drawchoice(int ch)
 
 static char *editstring(int r, int c, int w, char *str, int cp)
 {
-    register int key, k;
+    register int key, k, n;
     int firstkey = 1;
+    char seq[8];
 
     if (cp) {
         for (cp = 0; str[cp]; ++cp)
@@ -231,35 +232,35 @@ static char *editstring(int r, int c, int w, char *str, int cp)
     for (;; firstkey = 0) {
         VClearBox(r, c, 1, w);
         VMPutString(r, c, str);
-        VMove(r, c + cp);
+        VMove(r, c + dispwidthn(str, cp));
         VSync();
         switch (key = KeyGet()) {
         default:
-            if (key < ' ' || (key > '~' && key < 0300) || key > 0377) {
+            if (!isinputchar(key)) {
                 VBeep();
                 continue;
             }
+            n = KeyGetSeq(key, seq);
             if (firstkey) {
-                str[0] = key;
-                str[1] = 0;
-                cp     = 1;
+                strcpy(str, seq);
+                cp = n;
                 continue;
             }
-            for (k = cp; str[k]; ++k)
-                SWAP(key, str[k]);
-            str[k] = key;
-            str[w] = str[k + 1] = 0;
+            if (strlen(str) + n >= CMDLEN)
+                continue;
+            memmove(str + cp + n, str + cp, strlen(str + cp) + 1);
+            memcpy(str + cp, seq, n);
+            *(char *)dispskip(str, w) = 0;
             /* fall through */
         case meta('r'): /* right */
             if (str[cp]) {
-                ++cp;
-                if (cp >= w)
-                    cp = w - 1;
+                cp = dispnext(str, cp);
+                if (dispwidthn(str, cp) >= w)
+                    cp = dispprev(str, cp);
             }
             continue;
         case meta('l'): /* left */
-            if (--cp < 0)
-                cp = 0;
+            cp = dispprev(str, cp);
             continue;
         case cntrl(']'): /* redraw screen */
             VRedraw();
@@ -287,17 +288,16 @@ static char *editstring(int r, int c, int w, char *str, int cp)
             continue;
         case meta('b'): /* back space */
             if (cp) {
-                for (k = cp--; str[k]; ++k)
-                    str[k - 1] = str[k];
-                str[k - 1] = 0;
+                k  = cp;
+                cp = dispprev(str, cp);
+                memmove(str + cp, str + k, strlen(str + k) + 1);
             }
             continue;
         case cntrl('G'): /* delete */
             if (!str[cp])
                 continue;
-            for (k = cp + 1; str[k]; ++k)
-                str[k - 1] = str[k];
-            str[k - 1] = 0;
+            k = dispnext(str, cp);
+            memmove(str + cp, str + k, strlen(str + k) + 1);
             continue;
         case cntrl('Y'): /* clear line */
             str[cp = 0] = 0;

@@ -212,3 +212,28 @@ void KeyUnget(int key)
 {
     keyback = key;
 }
+
+/*
+ * Get the whole character, which starts with the given key.
+ * In UTF-8 mode, read the continuation bytes.
+ * Store it into seq (at least 5 bytes), return length.
+ */
+int KeyGetSeq(int key, char *seq)
+{
+    int n = 0, len, c;
+
+    seq[n++] = key;
+    if (VUtf8 && key >= 0300 && key < 0370) {
+        len = key < 0340 ? 2 : key < 0360 ? 3 : 4;
+        while (n < len) {
+            c = KeyGet();
+            if ((c & ~077) != 0200) {
+                KeyUnget(c);
+                break;
+            }
+            seq[n++] = c;
+        }
+    }
+    seq[n] = 0;
+    return (n);
+}
