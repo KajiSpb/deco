@@ -156,7 +156,7 @@ void outerr(char *s, ...)
     va_list ap;
 
     va_start(ap, s);
-    vsprintf(buf, s, ap);
+    vsnprintf(buf, sizeof(buf), s, ap);
     va_end(ap);
     for (p = buf; *p; ++p)
         if (*p == '\033')

@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <limits.h>
 #include "deco.h"
 #include "env.h"
 
@@ -59,25 +60,42 @@ void runcancel()
     free(arg);
 }
 
-static char *execat(char *s1, char *s2, char *si)
+static char *execat(char *s1, char *s2, char *si, int size)
 {
     register char *s;
+    char *end   = si + size - 1;
+    int toolong = 0;
 
     s = si;
-    while (*s1 && *s1 != ':')
-        *s++ = *s1++;
-    if (si != s)
-        *s++ = '/';
-    while (*s2)
-        *s++ = *s2++;
+    while (*s1 && *s1 != ':') {
+        if (s < end)
+            *s++ = *s1;
+        else
+            toolong = 1;
+        ++s1;
+    }
+    if (si != s) {
+        if (s < end)
+            *s++ = '/';
+        else
+            toolong = 1;
+    }
+    for (; *s2; ++s2) {
+        if (s < end)
+            *s++ = *s2;
+        else
+            toolong = 1;
+    }
     *s = 0;
+    if (toolong)
+        *si = 0; /* do not try a truncated path */
     return (*s1 ? ++s1 : 0);
 }
 
 static int execvpe(char *name, char **argv, char **envstr)
 {
     static char *pathstr;
-    char fname[128];
+    char fname[PATH_MAX];
     char *newargs[256];
     int i;
     register char *cp;
@@ -97,7 +115,7 @@ static int execvpe(char *name, char **argv, char **envstr)
         }
     }
     do {
-        cp = execat(cp, name, fname);
+        cp = execat(cp, name, fname, sizeof(fname));
     retry:
         (void)execve(fname, argv, envstr);
         switch (errno) {

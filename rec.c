@@ -39,6 +39,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <limits.h>
 #include "deco.h"
 #include "rec.h"
 
@@ -243,9 +244,13 @@ int RecSave(REC *r, char *filename)
 {
     register int i, fd;
     register LINE *p;
-    char bak[40];
+    char bak[PATH_MAX];
 
     if (r->bakfd < 0) {
+        if (strlen(filename) + sizeof(BAKSUFFIX) > sizeof(bak)) {
+            error("File name too long: %s", filename);
+            return (-1);
+        }
         strcpy(bak, filename);
         strcat(bak, BAKSUFFIX);
         r->bakfd = creat(bak, 0600);

@@ -36,7 +36,7 @@ void error(char *s, ...)
     va_list ap;
 
     va_start(ap, s);
-    vsprintf(buf, s, ap);
+    vsnprintf(buf, sizeof(buf), s, ap);
     va_end(ap);
     getchoice(1, " Error ", buf, 0, " Ok ", 0, 0);
 }
@@ -47,7 +47,7 @@ void message(char *name, char *s, ...)
     va_list ap;
 
     va_start(ap, s);
-    vsprintf(buf, s, ap);
+    vsnprintf(buf, sizeof(buf), s, ap);
     va_end(ap);
     getchoice(0, name, buf, 0, 0, 0, 0);
 }
@@ -308,7 +308,7 @@ char *getstring(int w, char *str, char *head, char *mesg)
     register int r, c, h;
     int len;
     BOX *box;
-    static char buf[81];
+    static char buf[CMDLEN];
 
     len = strlen(mesg);
     if (len > w)
@@ -331,7 +331,7 @@ char *getstring(int w, char *str, char *head, char *mesg)
     VStandEnd();
     VSetNormal();
 
-    strncpy(buf, str ? str : "", 80);
+    strncpy(buf, str ? str : "", sizeof(buf) - 2);
 
     str = editstring(r + 2, c + 2, w - 4, buf, 0);
     VUngetBox(box);
@@ -344,7 +344,7 @@ char *getwstring(int w, char *str, char *head, char *mesg)
     register int r, c, h;
     int len;
     BOX *box;
-    static char buf[81];
+    static char buf[CMDLEN];
 
     len = strlen(mesg);
     if (len > w)
@@ -371,7 +371,7 @@ char *getwstring(int w, char *str, char *head, char *mesg)
     VStandEnd();
     VSetNormal();
 
-    strncpy(buf, str ? str : "", 80);
+    strncpy(buf, str ? str : "", sizeof(buf) - 2);
 
     str = editstring(r + 2, c + 2, w - 4, buf, 1);
     VUngetBox(box);

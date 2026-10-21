@@ -39,6 +39,7 @@
  *              %%      - symbol '%'
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -201,13 +202,11 @@ static void readex()
 static void initex()
 {
     register int fd, n;
-    char fname[80];
+    char fname[MAXPATHLEN];
     char buf[BUFSZ];
 
     /* look for ~/.deco */
-    strcpy(fname, home);
-    strcat(fname, "/");
-    strcat(fname, EXFILE);
+    snprintf(fname, sizeof(fname), "%s/%s", home, EXFILE);
     fd = open(fname, 0);
     if (fd < 0) {
         /* look for /usr/local/lib/deco/profile */
@@ -219,8 +218,7 @@ static void initex()
                 return;
         }
     }
-    bufp = buf;
-    n    = read(fd, buf, sizeof(buf) - 1);
+    n = read(fd, buf, sizeof(buf) - 1);
     close(fd);
     if (n <= 0)
         return;
@@ -230,13 +228,14 @@ static void initex()
         skipln();
 
     readex();
+    bufp = 0;
 
     for (n = nex - 2; n >= 0; --n)
         if (!ex[n].cmd)
             ex[n].cmd = ex[n + 1].cmd;
 }
 
-int expandtagged(char *cp)
+static int expandtagged(char *cp, char *end)
 {
     register int i, n;
     register char *s;
@@ -244,20 +243,22 @@ int expandtagged(char *cp)
     for (i = n = 0; i < cur->num; ++i)
         if (cur->cat[i].tag) {
             s = cur->cat[i].name;
-            while (*s)
+            while (*s && cp < end)
                 *cp++ = *s++;
-            *cp++ = ' ';
+            if (cp < end)
+                *cp++ = ' ';
             ++n;
         }
     *cp = 0;
     return (n);
 }
 
-static void expand(char *cp, char *cmd, char *fname)
+static void expand(char *cp, int size, char *cmd, char *fname)
 {
     register char *s;
+    char *end = cp + size - 1;
 
-    for (; *cmd; ++cmd) {
+    for (; *cmd && cp < end; ++cmd) {
         if (*cmd != '%') {
             *cp++ = *cmd;
             continue;
@@ -267,7 +268,7 @@ static void expand(char *cp, char *cmd, char *fname)
             *cp++ = *cmd;
             continue;
         case 't': /* list of tagged files */
-            if (expandtagged(cp)) {
+            if (expandtagged(cp, end)) {
                 for (; *cp; ++cp)
                     ;
                 continue;
@@ -296,7 +297,7 @@ static void expand(char *cp, char *cmd, char *fname)
         }
         if (!s)
             continue;
-        while (*s)
+        while (*s && cp < end)
             *cp++ = *s++;
     }
     *cp = 0;
@@ -310,7 +311,7 @@ void excommand(char *cp, char *fname)
         initex();
     for (ep = ex; ep->pat; ++ep) {
         if (match(fname, ep->pat)) {
-            expand(cp, ep->cmd, fname);
+            expand(cp, CMDLEN, ep->cmd, fname);
             return;
         }
     }
@@ -377,7 +378,7 @@ static void printudm()
 static int openmenu(char *filename)
 {
     register int fd;
-    char fname[80];
+    char fname[MAXPATHLEN];
 
     if (filename)
         return (open(filename, 0));
@@ -385,9 +386,7 @@ static int openmenu(char *filename)
     fd = open(UMFILE, 0);
     if (fd < 0) {
         /* look for ~/.menu */
-        strcpy(fname, home);
-        strcat(fname, "/");
-        strcat(fname, UMFILE);
+        snprintf(fname, sizeof(fname), "%s/%s", home, UMFILE);
         fd = open(fname, 0);
         if (fd < 0) {
             /* look for /usr/local/lib/deco/menu */
@@ -557,7 +556,7 @@ static char *runudm(char *scale)
         if (um[cm].menu)
             return (um[cm].cex);
         /* execute command from menu */
-        expand(command, um[cm].cex, cur->cat[cur->curfile].name);
+        expand(command, CMDLEN, um[cm].cex, cur->cat[cur->curfile].name);
         cpos = strlen(command);
         if (command[0])
             execmd(um[cm].wait, um[cm].hist);
@@ -576,7 +575,7 @@ void usermenu() /* user defined menu */
         freeudm();
         if (!p)
             break;
-        expand(filename, p, cur->cat[cur->curfile].name);
+        expand(filename, sizeof(filename), p, cur->cat[cur->curfile].name);
         p = filename;
     }
 }
@@ -600,13 +599,11 @@ void readinitfile()
     register int fd, n;
     register char *line;
     struct dir *d;
-    char fname[80];
+    char fname[MAXPATHLEN];
     char buf[BUFSZ];
 
     /* look for ~/.decoini */
-    strcpy(fname, home);
-    strcat(fname, "/");
-    strcat(fname, INITFILE);
+    snprintf(fname, sizeof(fname), "%s/%s", home, INITFILE);
     fd = open(fname, 0);
     if (fd < 0) {
         /* look for /usr/local/lib/deco/initfile */
@@ -618,8 +615,7 @@ void readinitfile()
                 return;
         }
     }
-    bufp = buf;
-    n    = read(fd, buf, sizeof(buf) - 1);
+    n = read(fd, buf, sizeof(buf) - 1);
     close(fd);
     if (n <= 0)
         return;
@@ -670,7 +666,8 @@ void readinitfile()
                 d->status = 1;
                 break;
             case 'p': /* pattern */
-                strcpy(d->pattern, line + 2);
+                strncpy(d->pattern, line + 2, PATSZ);
+                d->pattern[PATSZ - 1] = 0;
                 break;
             case 'a': /* not align extensions */
                 d->alignext = 0;
@@ -701,7 +698,8 @@ void readinitfile()
                 userview = 1;
                 break;
             case 'n': /* name */
-                strcpy(viewname, line + 2);
+                strncpy(viewname, line + 2, sizeof(viewname));
+                viewname[sizeof(viewname) - 1] = 0;
                 break;
             }
             break;
@@ -711,7 +709,8 @@ void readinitfile()
                 useredit = 1;
                 break;
             case 'n': /* name */
-                strcpy(editname, line + 2);
+                strncpy(editname, line + 2, sizeof(editname));
+                editname[sizeof(editname) - 1] = 0;
                 break;
             case 'r': /* raw */
                 viewraw = 1;
@@ -802,18 +801,17 @@ void readinitfile()
             break;
         }
     }
+    bufp = 0;
 }
 
 void writeinitfile()
 {
     register int fd;
-    char fname[80];
+    char fname[MAXPATHLEN];
     char buf[BUFSZ];
 
     /* look for ~/.decoini */
-    strcpy(fname, home);
-    strcat(fname, "/");
-    strcat(fname, INITFILE);
+    snprintf(fname, sizeof(fname), "%s/%s", home, INITFILE);
     fd = creat(fname, 0600);
     if (fd < 0) {
         error("Cannot create %s", fname);
@@ -1068,5 +1066,6 @@ void writeinitfile()
     message(" Setup ", "Saving setup in %s ...", fname);
     write(fd, buf, (unsigned)(bufp - buf));
     close(fd);
+    bufp = 0;
     endmesg();
 }

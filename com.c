@@ -494,7 +494,7 @@ static int mycmd2(int scr)
         return (1);
     }
     if (strbcmp(command, "set") || strbcmp(command, "setenv")) {
-        char dir[100];
+        char dir[CMDLEN];
         char *v;
 
         v = getpar(dir);
@@ -504,7 +504,7 @@ static int mycmd2(int scr)
         return (1);
     }
     if (strbcmp(command, "unset") || strbcmp(command, "unsetenv")) {
-        char dir[100];
+        char dir[CMDLEN];
 
         getpar(dir);
         if (!dir[0])

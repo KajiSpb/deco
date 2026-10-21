@@ -1,6 +1,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <limits.h>
 #include "deco.h"
 #include "env.h"
 #include "scr.h"
@@ -335,7 +336,7 @@ static void inithelp(struct help *hp)
     register struct helptab *p;
     register int n, fd;
     register char **q;
-    char filename[60];
+    char filename[PATH_MAX];
     char buf[1024];
 
     if (!findhelpfile(filename, hp->name, LCLHELPDIR))
