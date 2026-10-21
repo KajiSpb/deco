@@ -272,7 +272,7 @@ void runhelp(char *name)
             VStandEnd();
         }
         if (!p->col)
-            VMPutString(r + p->row, c + (w - strlen(p->str)) / 2, p->str);
+            VMPutString(r + p->row, c + (w - dispwidth(p->str)) / 2, p->str);
         else
             VMPutString(r + p->row, c + p->col, p->str);
         if (p->bold) {
@@ -337,7 +337,7 @@ static void inithelp(struct help *hp)
     register int n, fd;
     register char **q;
     char filename[PATH_MAX];
-    char buf[1024];
+    char buf[4096];
 
     if (!findhelpfile(filename, hp->name, LCLHELPDIR))
         findhelpfile(filename, hp->name, HELPDIR);

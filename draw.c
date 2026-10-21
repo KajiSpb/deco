@@ -331,7 +331,7 @@ static void drawcwd(int col, char *wd)
 
     if (!visualwin)
         return;
-    len = strlen(wd);
+    len = dispwidth(wd);
     if (widewin && col)
         col = 38;
     VMPutString(1, col + (39 - len) / 2, wd);
@@ -339,7 +339,7 @@ static void drawcwd(int col, char *wd)
 
 static void drawpat(int col, char *pat, int width)
 {
-    col += width - strlen(pat) - 1;
+    col += width - dispwidth(pat) - 1;
     VMove(H + 4, col);
     VPutString(pat);
 }
@@ -537,68 +537,57 @@ static void drawlong(struct file *f)
     VPutString(timestr(f->mtime));
 }
 
-static char *filnam(const char *p, int tail)
+/*
+ * Fit file name into the given number of columns.
+ */
+static char *fitname(char *buf, const char *p, int width, int tail)
 {
-    static char buf[20];
-    register char *s;
-    const char *e, *q;
+    register char *s = buf;
+    const char *e;
+    int len = dispwidth(p);
+    int n;
 
-    if (strlen(p) > 14) {
+    if (len > width) {
         if (tail) {
-            buf[0] = '~';
-            strcpy(buf + 1, p + strlen(p) - 13);
+            *s++ = '~';
+            strcpy(s, dispskip(p, len - width + 1));
         } else {
-            strncpy(buf, p, 13);
-            buf[13] = '~';
+            e = dispskip(p, width - 1);
+            memcpy(s, p, e - p);
+            s += e - p;
+            *s++ = '~';
+            *s   = 0;
         }
         return (buf);
     }
-    for (s = buf; s < buf + 14; *s++ = ' ')
-        ; /* clear buf */
     if (cdir->alignext) {
         e = extension(p); /* make ptr to extension */
-        for (s = buf; p < e; *s++ = *p++)
-            ; /* copy file name */
-        for (q = e; *q; ++q)
-            ; /* search extension end */
-        for (s = buf + 13, --q; q >= e; *s-- = *q--)
-            ; /* copy extension */
+        n = e - p;
+        memcpy(s, p, n); /* copy file name */
+        s += n;
+        for (n = width - dispwidthn(p, n) - dispwidth(e); n > 0; --n)
+            *s++ = ' ';
+        strcpy(s, e); /* copy extension */
     } else {
-        e = p + 14; /* make ptr to end */
-        for (s = buf; *p && p < e; *s++ = *p++)
-            ; /* copy file name */
+        strcpy(s, p); /* copy file name */
+        s += strlen(p);
+        for (n = width - len; n > 0; --n)
+            *s++ = ' ';
+        *s = 0;
     }
-    buf[14] = 0;
     return (buf);
+}
+
+static char *filnam(const char *p, int tail)
+{
+    static char buf[14 * 4 + 2];
+
+    return (fitname(buf, p, 14, tail));
 }
 
 static char *filnam_wide(const char *p)
 {
-    static char buf[40];
-    register char *s;
-    const char *e, *q;
+    static char buf[33 * 4 + 2];
 
-#define N 33
-    if (strlen(p) > N) {
-        strncpy(buf, p, N - 1);
-        buf[N - 1] = '~';
-        return (buf);
-    }
-    for (s = buf; s < buf + N; *s++ = ' ')
-        ; /* clear buf */
-    if (cdir->alignext) {
-        e = extension(p); /* make ptr to extension */
-        for (s = buf; p < e; *s++ = *p++)
-            ; /* copy file name */
-        for (q = e; *q; ++q)
-            ; /* search extension end */
-        for (s = buf + N - 1, --q; q >= e; *s-- = *q--)
-            ; /* copy extension */
-    } else {
-        e = p + N; /* make ptr to end */
-        for (s = buf; *p && p < e; *s++ = *p++)
-            ; /* copy file name */
-    }
-    buf[N] = 0;
-    return (buf);
+    return (fitname(buf, p, 33, 0));
 }

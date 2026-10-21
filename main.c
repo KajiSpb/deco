@@ -644,7 +644,7 @@ void hidecursor()
 
 void mvcaddstr(int r, int c, char *s)
 {
-    VMPutString(r, c - (strlen(s) + 1) / 2, s);
+    VMPutString(r, c - (dispwidth(s) + 1) / 2, s);
 }
 
 int quote()

@@ -124,6 +124,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <langinfo.h>
+#include <locale.h>
 #include <sys/ioctl.h>
 #include "deco.h"
 #include "env.h"
@@ -170,6 +172,35 @@ static char *Cs, *Ce, *Ct;
 char VCyrInputTable['~' - ' ' + 1];
 static char VCyrOutputTable[64];
 static int cyroutput;
+
+/*
+ * In UTF-8 locale, every screen cell keeps a single byte in KOI8-U encoding.
+ * Input strings are decoded from UTF-8 by VPutChar(), and the output
+ * is encoded back to UTF-8 by putch(). Characters not present in KOI8-U
+ * are displayed as '?'.
+ */
+int VUtf8;
+static int utf8left; /* number of continuation bytes expected */
+static int utf8code; /* character code accumulated so far */
+
+static const unsigned short koi8u[128] = {
+    0x2500, 0x2502, 0x250c, 0x2510, 0x2514, 0x2518, 0x251c, 0x2524,
+    0x252c, 0x2534, 0x253c, 0x2580, 0x2584, 0x2588, 0x258c, 0x2590,
+    0x2591, 0x2592, 0x2593, 0x2320, 0x25a0, 0x2219, 0x221a, 0x2248,
+    0x2264, 0x2265, 0x00a0, 0x2321, 0x00b0, 0x00b2, 0x00b7, 0x00f7,
+    0x2550, 0x2551, 0x2552, 0x0451, 0x0454, 0x2554, 0x0456, 0x0457,
+    0x2557, 0x2558, 0x2559, 0x255a, 0x255b, 0x0491, 0x255d, 0x255e,
+    0x255f, 0x2560, 0x2561, 0x0401, 0x0404, 0x2563, 0x0406, 0x0407,
+    0x2566, 0x2567, 0x2568, 0x2569, 0x256a, 0x0490, 0x256c, 0x00a9,
+    0x044e, 0x0430, 0x0431, 0x0446, 0x0434, 0x0435, 0x0444, 0x0433,
+    0x0445, 0x0438, 0x0439, 0x043a, 0x043b, 0x043c, 0x043d, 0x043e,
+    0x043f, 0x044f, 0x0440, 0x0441, 0x0442, 0x0443, 0x0436, 0x0432,
+    0x044c, 0x044b, 0x0437, 0x0448, 0x044d, 0x0449, 0x0447, 0x044a,
+    0x042e, 0x0410, 0x0411, 0x0426, 0x0414, 0x0415, 0x0424, 0x0413,
+    0x0425, 0x0418, 0x0419, 0x041a, 0x041b, 0x041c, 0x041d, 0x041e,
+    0x041f, 0x042f, 0x0420, 0x0421, 0x0422, 0x0423, 0x0416, 0x0412,
+    0x042c, 0x042b, 0x0417, 0x0428, 0x042d, 0x0429, 0x0427, 0x042a,
+};
 
 int LINES; /* number of lines on screen */
 int COLS;  /* number of columns */
@@ -265,6 +296,8 @@ static void domvcur(int y, int x);
 static void doscrool(void);
 static void sclln(int y1, int y2, int n);
 static void screrase();
+static void putcell(int c);
+static void utf8flush(void);
 
 int VInit()
 {
@@ -272,6 +305,14 @@ int VInit()
     int i;
 
     CapGet(outtab);
+
+    /* Detect UTF-8 locale; keep "C" locale for the rest of the program. */
+    if (setlocale(LC_CTYPE, "")) {
+        VUtf8 = strcmp(nl_langinfo(CODESET), "UTF-8") == 0;
+        setlocale(LC_CTYPE, "C");
+    }
+    if (VUtf8)
+        Cy = 0;
 
     p = EnvGet("LINES");
     if (p && *p)
@@ -817,6 +858,7 @@ static void domvcur(int y, int x)
 
 void VMove(int y, int x)
 {
+    utf8flush();
     if (x >= 0 && x < COLS)
         VScreen.curx = x;
     if (y >= 0 && y < LINES)
@@ -888,6 +930,7 @@ void VPutString(char *str)
 {
     while (*str)
         VPutChar(*str++);
+    utf8flush();
 }
 
 static char *makecolor(int c, int b)
@@ -1187,13 +1230,70 @@ int VSetBold()
     return (1);
 }
 
+/*
+ * Convert Unicode character to KOI8-U cell value.
+ */
+static int unicode_to_cell(int u)
+{
+    int i;
+
+    if (u < 0200)
+        return (u);
+    for (i = 0; i < 128; ++i)
+        if (koi8u[i] == u)
+            return (0200 + i);
+    return ('?');
+}
+
+/*
+ * Output '?' for incomplete UTF-8 sequence.
+ */
+static void utf8flush()
+{
+    if (utf8left) {
+        utf8left = 0;
+        putcell('?');
+    }
+}
+
 void VPutChar(int c)
+{
+    c &= 0377;
+    if (!VUtf8) {
+        putcell(c);
+        return;
+    }
+    if (utf8left) {
+        if ((c & 0300) == 0200) {
+            utf8code = utf8code << 6 | (c & 077);
+            if (--utf8left == 0)
+                putcell(unicode_to_cell(utf8code));
+            return;
+        }
+        utf8flush();
+    }
+    if (c < 0200) {
+        putcell(c);
+    } else if ((c & 0340) == 0300) {
+        utf8code = c & 037;
+        utf8left = 1;
+    } else if ((c & 0360) == 0340) {
+        utf8code = c & 017;
+        utf8left = 2;
+    } else if ((c & 0370) == 0360) {
+        utf8code = c & 07;
+        utf8left = 3;
+    } else
+        putcell('?');
+}
+
+static void putcell(int c)
 {
     register int x, y;
 
     x = VScreen.curx;
     y = VScreen.cury;
-    switch (c &= 0377) {
+    switch (c) {
     case '\16':
         VStandOut();
         return;
@@ -1290,6 +1390,18 @@ static void cyr(int on)
 
 static void putch(int c)
 {
+    if (VUtf8 && (c & 0200) && !(c & GRAPH)) {
+        int u = koi8u[(c & 0177)];
+
+        if (u < 04000) {
+            qputch(0300 | u >> 6);
+        } else {
+            qputch(0340 | u >> 12);
+            qputch(0200 | (u >> 6 & 077));
+        }
+        qputch(0200 | (u & 077));
+        return;
+    }
     c &= 0377;
     if (TtyUpperCase) {
         if (c >= 'a' && c <= 'z')

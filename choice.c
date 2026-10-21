@@ -65,17 +65,20 @@ int getchoice(int bold, char *head, char *msg, char *mesg2, char *c1, char *c2, 
     int isattr;
     register int r, c, w, h;
     BOX *box;
-    char mesg[67];
+    char mesg[66 * 4 + 1];
 
-    strncpy(mesg, msg, sizeof(mesg));
-    mesg[sizeof(mesg) - 1] = 0;
-    w                      = strlen(mesg);
+    len = dispskip(msg, 66) - msg; /* at most 66 columns */
+    if (len >= (int)sizeof(mesg))
+        len = sizeof(mesg) - 1;
+    memcpy(mesg, msg, len);
+    mesg[len] = 0;
+    w         = dispwidth(mesg);
     if (mesg2) {
-        len = strlen(mesg2);
+        len = dispwidth(mesg2);
         if (len > w)
             w = len;
     }
-    len = strlen(head);
+    len = dispwidth(head);
     if (len > w)
         w = len;
     len = 0;
@@ -103,12 +106,12 @@ int getchoice(int bold, char *head, char *msg, char *mesg2, char *c1, char *c2, 
         VSetDim();
     VFillBox(r - 1, c - 2, h + 2, w + 4, ' ');        /* clear */
     VDrawBox(r, c, h, w);                             /* draw margins */
-    VMPutString(r, c + (w - strlen(head)) / 2, head); /* head */
+    VMPutString(r, c + (w - dispwidth(head)) / 2, head); /* head */
     if (mesg2) {
-        VMPutString(r + 1, c + (w - strlen(mesg)) / 2, mesg);
-        VMPutString(r + 2, c + (w - strlen(mesg2)) / 2, mesg2);
+        VMPutString(r + 1, c + (w - dispwidth(mesg)) / 2, mesg);
+        VMPutString(r + 2, c + (w - dispwidth(mesg2)) / 2, mesg2);
     } else
-        VMPutString(r + 2, c + (w - strlen(mesg)) / 2, mesg);
+        VMPutString(r + 2, c + (w - dispwidth(mesg)) / 2, mesg);
 
     if (c1) {
         if (isattr) {

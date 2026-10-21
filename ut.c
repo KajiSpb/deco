@@ -67,6 +67,56 @@ char *getmachine()
     return (0);
 }
 
+/*
+ * Get length of the next displayed character, in bytes.
+ * Must match the decoding in VPutChar().
+ */
+static int dispcharlen(const char *s, int n)
+{
+    int c = *s & 0377, len, i;
+
+    if (!VUtf8 || c < 0300 || c >= 0370)
+        return (1);
+    len = c < 0340 ? 2 : c < 0360 ? 3 : 4;
+    for (i = 1; i < len && i < n && (s[i] & 0300) == 0200; ++i)
+        ;
+    return (i);
+}
+
+/*
+ * Width of the string on the screen, in columns.
+ */
+int dispwidth(const char *s)
+{
+    return (dispwidthn(s, strlen(s)));
+}
+
+/*
+ * Width of the first n bytes of the string, in columns.
+ */
+int dispwidthn(const char *s, int n)
+{
+    int w = 0, len;
+
+    while (n > 0 && *s) {
+        len = dispcharlen(s, n);
+        s += len;
+        n -= len;
+        ++w;
+    }
+    return (w);
+}
+
+/*
+ * Skip the given number of columns in the string.
+ */
+const char *dispskip(const char *s, int width)
+{
+    while (width-- > 0 && *s)
+        s += dispcharlen(s, 4);
+    return (s);
+}
+
 const char *extension(const char *p)
 {
     const char *s;
@@ -124,17 +174,16 @@ char *basename(char *p)
 char *strtail(char *p, int delim, int maxlen)
 {
     register char *s;
+    int len = dispwidth(p);
 
     /* return tail of string */
-    for (s = p; *s; ++s)
-        ;
-    s -= maxlen;
-    if (s <= p)
+    if (len <= maxlen)
         return (p);
+    s = (char *)dispskip(p, len - maxlen);
     for (; *s; ++s)
         if (*s == delim)
             return (s + 1);
-    return (s - maxlen);
+    return ((char *)dispskip(p, len - maxlen));
 }
 
 int strbcmp(char *s, char *b)

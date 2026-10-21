@@ -32,6 +32,7 @@ extern int main_pid;           /* our process id */
 extern int ppid;               /* parent id */
 extern int lang;               /* language */
 extern char editname[40], viewname[40];
+extern int VUtf8; /* screen uses UTF-8 */
 extern int useredit, userview, usecshell;
 extern int viewraw, viewhex, viewtabs;
 extern char *home;
@@ -84,6 +85,9 @@ const char *extension(const char *p);
 char *ltoac(long l);
 char *basename(char *p);
 char *strtail(char *p, int delim, int maxlen);
+int dispwidth(const char *s);
+int dispwidthn(const char *s, int n);
+const char *dispskip(const char *s, int width);
 int strbcmp(char *s, char *b);
 int match(char *name, char *pat);
 int getmenu(void);
